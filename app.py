@@ -13,7 +13,16 @@ from rag import embed_documents, search_docs, load_index, save_index, split_text
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}}, allow_headers="*", methods=["GET", "POST", "OPTIONS"])
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}},
+     methods=["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
+     allow_headers=[
+         "Content-Type", 
+         "Authorization", 
+         "X-Requested-With", 
+         "Accept", 
+         "Origin",
+         "X-CSRF-Token"
+     ])
 
 current_chunks = []
 uploaded_files = []
