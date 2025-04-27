@@ -6,3 +6,4 @@ PyMuPDF
 faiss-cpu
 sentence-transformers
 gunicorn
+python-dotenv

@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, make_response, Response
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import requests
@@ -6,8 +6,11 @@ import os
 import fitz  # PyMuPDF
 import docx
 import json
-
+from dotenv import load_dotenv
 from rag import embed_documents, search_docs, load_index, save_index, split_text
+
+# Load env
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
@@ -15,6 +18,9 @@ CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
 current_chunks = []
 uploaded_files = []
 load_index()
+
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -28,25 +34,30 @@ def chat():
         f"Question: {query}\nAnswer:"
     )
 
-    def stream_response():
-        try:
-            with requests.post(
-                "http://localhost:11434/api/generate",
-                json={"model": "tinyllama", "prompt": prompt, "stream": True},
-                stream=True
-            ) as res:
-                for line in res.iter_lines():
-                    if line:
-                        try:
-                            parsed = json.loads(line.decode("utf-8"))
-                            token = parsed.get("response", "")
-                            yield token
-                        except json.JSONDecodeError:
-                            continue
-        except Exception as e:
-            yield f"\n❌ Ollama API error: {str(e)}"
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.7,
+        "stream": False
+    }
 
-    return Response(stream_response(), mimetype="text/plain")
+    try:
+        res = requests.post(DEEPSEEK_API_URL, headers=headers, json=data)
+        res.raise_for_status()
+        result = res.json()
+        full_answer = result["choices"][0]["message"]["content"]
+        print("\n📝 Full AI Answer:", full_answer)
+        return jsonify({"answer": full_answer})
+    except Exception as e:
+        print("❌ DeepSeek API error:", e)
+        return jsonify({"answer": "Sorry, DeepSeek API call failed."})
 
 def extract_text_from_file(file_path):
     if file_path.endswith(".txt"):
